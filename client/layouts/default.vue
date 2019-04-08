@@ -198,7 +198,7 @@
                             v{{ version }}</a>
 
                             <code class="text-muted copyright__code">
-                                TomoChain/stable/linux-amd64/golang
+                                go-caelum/stable/linux-amd64/golang
                             </code>
                         </p>
                     </b-col>
@@ -208,35 +208,35 @@
                         <ul class="list-inline tomo-footer__social">
                             <li class="list-inline-item">
                                 <a
-                                    href="https://t.me/tomochain"
+                                    href="https://t.me/caelumofficial"
                                     target="_blank">
                                     <i class="fa fa-telegram"/>
                                 </a>
                             </li>
                             <li class="list-inline-item">
                                 <a
-                                    href="https://www.facebook.com/tomochainofficial"
+                                    href="https://www.facebook.com/"
                                     target="_blank">
                                     <i class="fa fa-facebook"/>
                                 </a>
                             </li>
                             <li class="list-inline-item">
                                 <a
-                                    href="https://twitter.com/TomoChainANN"
+                                    href="https://twitter.com/CaelumToken"
                                     target="_blank">
                                     <i class="fa fa-twitter"/>
                                 </a>
                             </li>
                             <li class="list-inline-item">
                                 <a
-                                    href="https://github.com/tomochain/"
+                                    href="https://github.com/caelumproject/"
                                     target="_blank">
                                     <i class="fa fa-github"/>
                                 </a>
                             </li>
                             <li class="list-inline-item">
                                 <a
-                                    href="https://www.reddit.com/r/Tomochain/"
+                                    href="https://www.reddit.com/"
                                     target="_blank">
                                     <i class="fa fa-reddit"/>
                                 </a>
