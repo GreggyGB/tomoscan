@@ -21,9 +21,9 @@ class EmailService {
 
         let subject = ''
         if (type === 'received') {
-            subject = 'TOMO received at ' + address
+            subject = 'CLMP received at ' + address
         } else {
-            subject = 'TOMO sent at ' + address
+            subject = 'CLMP sent at ' + address
         }
 
         return this.send('follow.html', user.email, subject, {

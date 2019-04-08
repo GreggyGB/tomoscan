@@ -48,7 +48,7 @@
   "WEB3_WS_URI": "ws://fullnode_tomoscan01:8546",
   "DEBUG_QUERY": false,
 
-  "BASE_UNIT": "TOMO",
+  "BASE_UNIT": "CLMP",
   "PORT": 3333,
   "DEBUG": "express:*",
 
