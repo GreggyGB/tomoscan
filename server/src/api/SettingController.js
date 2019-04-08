@@ -30,7 +30,7 @@ SettingController.get('/setting', async (req, res) => {
 
 SettingController.get('/setting/usd', async (req, res) => {
     try {
-        let { data } = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=tomochain&vs_currencies=usd')
+        let { data } = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=caelum&vs_currencies=usd')
 
         tomoUsd = data
     } catch (e) {
