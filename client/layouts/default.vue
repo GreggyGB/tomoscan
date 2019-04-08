@@ -193,7 +193,7 @@
                     <b-col
                         md="6"
                         class="tomo-footer__copyright">
-                        <p>TomoScan {{ (new Date()).getFullYear() }} - <a
+                        <p>Forked from TomoScan {{ (new Date()).getFullYear() }} - <a
                             :href="`https://github.com/tomochain/tomoscan/releases/tag/v${version}`">
                             v{{ version }}</a>
 
