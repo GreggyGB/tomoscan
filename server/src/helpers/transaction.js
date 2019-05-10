@@ -7,6 +7,7 @@ const logger = require('./logger')
 const BlockHelper = require('./block')
 const axios = require('axios')
 const config = require('config')
+const redisHelper = require('./redis')
 
 let sleep = (time) => new Promise((resolve) => setTimeout(resolve, time))
 let TransactionHelper = {
@@ -187,6 +188,82 @@ let TransactionHelper = {
 
             await db.Tx.updateOne({ hash: hash }, tx,
                 { upsert: true, new: true })
+            let cacheOut = await redisHelper.get(`txs-out-${tx.from}`)
+            if (cacheOut !== null) {
+                let r1 = JSON.parse(cacheOut)
+                let isExist = false
+                for (let i = 0; i < r1.items.length; i++) {
+                    if (r1.items[i].hash === hash) {
+                        isExist = true
+                        break
+                    }
+                }
+                if (!isExist) {
+                    r1.total += 1
+                    r1.items.unshift(tx)
+                    r1.items.pop()
+                    logger.debug('Update cache out tx of address %s', tx.from)
+                    await redisHelper.set(`txs-out-${tx.from}`, JSON.stringify(r1))
+                }
+            }
+
+            let cacheAll1 = await redisHelper.get(`txs-all-${tx.from}`)
+            if (cacheAll1 !== null) {
+                let ra1 = JSON.parse(cacheAll1)
+                let isExist = false
+                for (let i = 0; i < ra1.items.length; i++) {
+                    if (ra1.items[i].hash === hash) {
+                        isExist = true
+                        break
+                    }
+                }
+                if (!isExist) {
+                    ra1.total += 1
+                    ra1.items.unshift(tx)
+                    ra1.items.pop()
+                    logger.debug('Update cache all tx of address %s', tx.from)
+                    await redisHelper.set(`txs-all-${tx.from}`, JSON.stringify(ra1))
+                }
+            }
+            if (tx.to) {
+                let cacheIn = await redisHelper.get(`txs-in-${tx.to}`)
+                if (cacheIn !== null) {
+                    let r2 = JSON.parse(cacheIn)
+                    let isExist = false
+                    for (let i = 0; i < r2.items.length; i++) {
+                        if (r2.items[i].hash === hash) {
+                            isExist = true
+                            break
+                        }
+                    }
+                    if (!isExist) {
+                        r2.total += 1
+                        r2.items.unshift(tx)
+                        r2.items.pop()
+                        logger.debug('Update cache in tx of address %s', tx.to)
+                        await redisHelper.set(`txs-in-${tx.to}`, JSON.stringify(r2))
+                    }
+                }
+
+                let cacheAll2 = await redisHelper.get(`txs-all-${tx.to}`)
+                if (cacheAll2 !== null) {
+                    let ra2 = JSON.parse(cacheAll2)
+                    let isExist = false
+                    for (let i = 0; i < ra2.items.length; i++) {
+                        if (ra2.items[i].hash === hash) {
+                            isExist = true
+                            break
+                        }
+                    }
+                    if (!isExist) {
+                        ra2.total += 1
+                        ra2.items.unshift(tx)
+                        ra2.items.pop()
+                        logger.debug('Update cache all tx of address %s', tx.to)
+                        await redisHelper.set(`txs-all-${tx.to}`, JSON.stringify(ra2))
+                    }
+                }
+            }
         } catch (e) {
             logger.warn('cannot crawl transaction %s with error %s. Sleep 2 second and retry', hash, e)
             await sleep(2000)
@@ -315,24 +392,24 @@ let TransactionHelper = {
                         if (call.value !== '0x0') {
                             let from = (call.from || '').toLowerCase()
                             let to = (call.to || '').toLowerCase()
-                            let it = await db.InternalTx.findOneAndUpdate(
-                                { hash: transaction.hash, from: from, to: to },
-                                {
-                                    hash: transaction.hash,
-                                    blockNumber: transaction.blockNumber,
-                                    from: from,
-                                    to: to,
-                                    value: web3.utils.hexToNumberString(call.value),
-                                    timestamp: transaction.timestamp
-                                },
-                                { upsert: true, new: true }
-                            )
-                            internalTx.push(it)
+
+                            internalTx.push({
+                                hash: transaction.hash,
+                                blockNumber: transaction.blockNumber,
+                                from: from,
+                                to: to,
+                                value: web3.utils.hexToNumberString(call.value),
+                                timestamp: transaction.timestamp
+                            })
                         }
                     }
                 })
                 await Promise.all(map)
             }
+        }
+        if (internalTx.length > 0) {
+            await db.InternalTx.deleteOne({ hash: transaction.hash })
+            await db.InternalTx.insertMany(internalTx)
         }
         return internalTx
     }

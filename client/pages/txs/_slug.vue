@@ -31,7 +31,6 @@
                     class="tomo-tabs"
                     @input="onSwitchTab">
                     <b-tab
-                        :active="hashTab === '#overview'"
                         title="Overview"
                         href="#overview">
                         <div
@@ -185,8 +184,7 @@
                                                                 params: {slug: tokenTx.address}}">
                                                             &nbsp;
                                                             <span
-                                                                v-if="tokenTx.symbol"
-                                                                v-html="'TRC20 (' + tokenTx.symbol + ')'"/>
+                                                                v-if="tokenTx.symbol">TRC20 {{ tokenTx.symbol }}</span>
                                                         </nuxt-link>
                                                     </p>
                                                 </span>
@@ -215,7 +213,6 @@
                     <!--:title="'Events (' + formatNumber(eventsCount) + ')'"-->
                     <b-tab
                         v-if="eventsCount > 0"
-                        :active="hashTab === '#events'"
                         title="Events"
                         href="#events">
                         <table-event

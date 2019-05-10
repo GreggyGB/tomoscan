@@ -12,7 +12,7 @@
 
         <p
             v-if="total > 0"
-            class="tomo-total-items">{{ _nFormatNumber('epoch', 'epochs', total, realTotal) }}</p>
+            class="tomo-total-items">{{ _nFormatNumber('epoch', 'epochs', total) }}</p>
 
         <table-base
             v-if="total > 0"
@@ -40,6 +40,11 @@
                 <nuxt-link :to="{name: 'blocks-slug', params: {slug: props.item.endBlock}}">
                     {{ props.item.endBlock }}
                 </nuxt-link>
+            </template>
+            <template
+                slot="slashedNode"
+                slot-scope="props">
+                {{ props.item.slashedNode.length }}
             </template>
         </table-base>
 
@@ -74,13 +79,16 @@ export default {
         fields: {
             epoch: { label: 'Epoch' },
             startBlock: { label: 'Start block' },
-            endBlock: { label: 'End block' }
+            endBlock: { label: 'End block' },
+            duration: { label: 'Duration' },
+            masterNodeNumber: { label: 'MasterNode' },
+            voterNumber: { label: 'Voter' },
+            slashedNode: { label: 'SlashedNode' }
         },
         loading: true,
         pagination: {},
         total: 0,
         lastBlock: 0,
-        realTotal: 0,
         items: [],
         currentPage: 1,
         perPage: 20,
@@ -119,7 +127,6 @@ export default {
             self.items = data.items
             self.total = data.total
             self.lastBlock = data.items[0].number
-            self.realTotal = data.realTotal
             self.currentPage = data.currentPage
             self.pages = data.pages
 

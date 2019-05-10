@@ -74,7 +74,11 @@
                         </tr>
                         <tr>
                             <td>MasterNode number</td>
-                            <td>{{ formatNumber(epoch.masterNodeNumber) }}</td>
+                            <td>
+                                {{ epoch.masterNodeNumber }} MasterNode
+                                <span v-if="epoch.slashedNode.length > 0">
+                                    {{ epoch.slashedNode.length }} SlashedNode</span>
+                            </td>
                         </tr>
                         <tr>
                             <td>Voter number</td>
@@ -92,7 +96,6 @@
             @input="onSwitchTab">
             <!--:title="'Reward Voter (' + formatNumber(voterCount) + ')'"-->
             <b-tab
-                :active="hashTab === '#voters'"
                 title="Reward Voter"
                 href="#voters">
                 <table-reward-by-epoch
@@ -104,7 +107,6 @@
             </b-tab>
             <!--:title="'Reward Foundation (' + formatNumber(foundationCount) + ')'"-->
             <b-tab
-                :active="hashTab === '#foundations'"
                 title="Reward Foundation"
                 href="#foundations">
                 <table-reward-by-epoch
@@ -114,6 +116,38 @@
                     :parent="'foundations'"
                     :page="this"/>
             </b-tab>
+            <b-tab
+                title="Slashed Node"
+                href="#slashedNode">
+
+                <div
+                    v-if="epoch.slashedNode.length === 0"
+                    class="tomo-empty">
+                    <i class="fa fa-cube tomo-empty__icon"/>
+                    <p class="tomo-empty__description">No slashed node</p>
+                </div>
+
+                <p
+                    v-if="epoch.slashedNode.length > 0"
+                    class="tomo-total-items">{{ _nFormatNumber('node', 'nodes', epoch.slashedNode.length) }}</p>
+                <table
+                    v-if="epoch.slashedNode.length > 0"
+                    class="tomo-table">
+                    <thead>
+                        <tr><th>Coinbase</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="(item, index) in epoch.slashedNode"
+                            :key="index">
+                            <td>
+                                <nuxt-link
+                                    :to="{name: 'address-slug', params: {slug: item}}">{{ item }}</nuxt-link>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </b-tab>
         </b-tabs>
     </section>
 </template>
@@ -121,7 +155,6 @@
 import mixin from '~/plugins/mixin'
 import ReadMore from '~/components/ReadMore'
 import TableRewardByEpoch from '~/components/TableRewardByEpoch'
-
 export default {
     components: {
         ReadMore,

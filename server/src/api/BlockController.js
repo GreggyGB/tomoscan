@@ -102,8 +102,6 @@ BlockController.get('/blocks', [
             }
         }
 
-        let limitedRecords = config.get('LIMITED_RECORDS')
-        let newTotal = maxBlockNumber > limitedRecords ? limitedRecords : maxBlockNumber
         let pages = Math.ceil(maxBlockNumber / perPage)
         if (pages > 500) {
             pages = 500
@@ -111,8 +109,7 @@ BlockController.get('/blocks', [
         await Promise.all(map2)
 
         let data = {
-            realTotal: maxBlockNumber,
-            total: newTotal,
+            total: maxBlockNumber,
             perPage: perPage,
             currentPage: page,
             pages: pages,
@@ -138,6 +135,43 @@ BlockController.get('/blocks/:slug', [
 
         if (block === null) {
             return res.status(404).json({ errors: { message: 'Block is not found!' } })
+        }
+        block = block.toJSON()
+        if (block.number % config.get('BLOCK_PER_EPOCH') === 0) {
+            let slashedNode = []
+            let blk = await BlockHelper.getBlock(block.number)
+            if (blk.penalties && blk.penalties !== '0x') {
+                let sbuff = Buffer.from((blk.penalties || '').substring(2), 'hex')
+                if (sbuff.length > 0) {
+                    for (let i = 1; i <= sbuff.length / 20; i++) {
+                        let address = sbuff.slice((i - 1) * 20, i * 20)
+                        slashedNode.push('0x' + address.toString('hex'))
+                    }
+                }
+            }
+
+            let buff = Buffer.from(blk.extraData.substring(2), 'hex')
+            let sbuff = buff.slice(32, buff.length - 65)
+            let signers = []
+            if (sbuff.length > 0) {
+                for (let i = 1; i <= sbuff.length / 20; i++) {
+                    let address = sbuff.slice((i - 1) * 20, i * 20)
+                    signers.push('0x' + address.toString('hex'))
+                }
+            }
+
+            let web3 = await Web3Util.getWeb3()
+
+            buff = Buffer.from(blk.validators.substring(2), 'hex')
+            let randoms = []
+            for (let i = 1; i <= buff.length / 4; i++) {
+                let k = buff.slice((i - 1) * 4, i * 4)
+                randoms.push(web3.utils.toUtf8('0x' + k.toString('hex')))
+            }
+
+            block.slashedNode = slashedNode
+            block.randoms = randoms
+            block.validators = signers
         }
 
         return res.json(block)

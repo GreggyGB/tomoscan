@@ -16,7 +16,7 @@ let RewardHelper = {
             startBlock = endBlock - (config.get('BLOCK_PER_EPOCH') * 2) + 1
         }
         logger.info('Get vote history from block %s to block %s', startBlock, endBlock)
-        await db.VoteHistory.remove({ blockNumber: { $gte: startBlock, $lte: endBlock } })
+        await db.VoteHistory.deleteOne({ blockNumber: { $gte: startBlock, $lte: endBlock } })
 
         if (parseInt(epoch) === 2) {
             let defaultCandidate = config.get('defaultCandidate')
@@ -92,7 +92,7 @@ let RewardHelper = {
 
         // Delete old reward
         logger.info('Remove old reward of epoch %s', epoch)
-        await db.Reward.remove({ epoch: epoch })
+        await db.Reward.deleteOne({ epoch: epoch })
 
         let totalReward = new BigNumber(config.get('REWARD'))
         let validatorRewardPercent = new BigNumber(config.get('MASTER_NODE_REWARD_PERCENT'))
@@ -257,9 +257,9 @@ let RewardHelper = {
 
     voteHistoryProcess: async (epoch) => {
         logger.info('Remove old user vote amount for epoch %s', epoch)
-        await db.UserVoteAmount.remove({ epoch: epoch })
+        await db.UserVoteAmount.deleteOne({ epoch: epoch })
         if (epoch === 1) {
-            await db.UserVoteAmount.remove({ epoch: 0 })
+            await db.UserVoteAmount.deleteOne({ epoch: 0 })
         }
         let endBlock = (parseInt(epoch) + 1) * config.get('BLOCK_PER_EPOCH')
         let startBlock = endBlock - config.get('BLOCK_PER_EPOCH') + 1
@@ -387,7 +387,7 @@ let RewardHelper = {
         }
 
         try {
-            await db.Reward.remove({ epoch: epoch })
+            await db.Reward.deleteOne({ epoch: epoch })
 
             // const response = await axios.post('http://128.199.228.202:8545/', data)
             const response = await axios.post(config.get('WEB3_URI'), data)
@@ -396,23 +396,37 @@ let RewardHelper = {
                 let signNumber = result.result.signers
                 let rewards = result.result.rewards
 
-                let hashes = []
-                for (let m in rewards) {
-                    hashes.push(m)
-                }
-                let url = urlJoin(config.get('TOMOMASTER_API_URL'), '/api/candidates/listByHash')
-                let candidate = await axios.post(url, { 'hashes': hashes.join(',') })
-                let canR = candidate.data
+                let slashedNode = []
+
+                let url = urlJoin(config.get('TOMOMASTER_API_URL'), '/api/candidates')
+                let c = await axios.get(url)
+                let canR = c.data.items
                 let canName = {}
                 if (canR) {
                     for (let i = 0; i < canR.length; i++) {
                         canName[canR[i].candidate] = canR[i].name
+
+                        // TODO: will use get list candidate status in the future
+                        let data = {
+                            'jsonrpc': '2.0',
+                            'method': 'eth_getCandidateStatus',
+                            'params': [canR[i].candidate.toLowerCase(), `0x${epoch}`],
+                            'id': 88
+                        }
+                        let status = await axios.post(config.get('WEB3_URI'), data)
+                        if (!status.err) {
+                            if (status.data.result === 'SLASHED') {
+                                slashedNode.push(canR[i].candidate.toLowerCase())
+                            }
+                        }
                     }
                 }
 
                 let rdata = []
                 let countProcess = []
+                let mnNumber = 0
                 for (let m in rewards) {
+                    mnNumber += 1
                     for (let v in rewards[m]) {
                         let r = new BigNumber(rewards[m][v])
                         r = r.dividedBy(10 ** 18).toString()
@@ -452,6 +466,10 @@ let RewardHelper = {
                 if (sdata.length > 0) {
                     await db.EpochSign.insertMany(sdata)
                 }
+
+                let sBlock = await BlockHelper.getBlockDetail(startBlock)
+                let eBlock = await BlockHelper.getBlockDetail(endBlock)
+
                 if (rdata.length > 0) {
                     logger.info('Insert %s rewards to db', rdata.length)
                     await db.Reward.insertMany(rdata)
@@ -466,6 +484,20 @@ let RewardHelper = {
                     }
                     return RewardHelper.rewardOnChain(epoch, calculateTime)
                 }
+                let vNumber = await db.Reward.distinct('address', { epoch: epoch })
+
+                await db.Epoch.updateOne({ epoch: epoch }, {
+                    epoch: epoch,
+                    startBlock: startBlock,
+                    endBlock: endBlock,
+                    startTime: sBlock.timestamp,
+                    endTime: eBlock.timestamp,
+                    duration: (new Date(eBlock.timestamp) - new Date(sBlock.timestamp)) / 1000,
+                    masterNodeNumber: mnNumber,
+                    voterNumber: vNumber.length,
+                    slashedNode: slashedNode
+                }, { upsert: true, new: true })
+
                 return true
             } else {
                 logger.warn('There are some error of epoch %s. Error %s', epoch, JSON.stringify(result.error))
