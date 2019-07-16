@@ -5,7 +5,7 @@ const Schema = mongoose.Schema
 
 const TokenTx = new Schema({
     address: { type: String, index: true },
-    blockHash: String,
+    blockHash: { type: String, index: true },
     blockNumber: { type: Number, index: true },
     transactionHash: { type: String, index: true },
     transactionIndex: Number,
@@ -14,8 +14,7 @@ const TokenTx = new Schema({
     data: String,
     value: String,
     valueNumber: Number,
-    input: String,
-    block: { type: Schema.Types.ObjectId, ref: 'Block' }
+    input: String
 }, {
     timestamps: true,
     toObject: { virtuals: true, getters: true },

@@ -24,7 +24,7 @@
                 slot="hash"
                 slot-scope="props">
                 <nuxt-link
-                    :to="{name: 'tokens-slug-holder-holder', params: { slug: address, holder: props.item.hash}}"
+                    :to="{name: 'tokens-slug-trc20-holder', params: { slug: address, holder: props.item.hash}}"
                     class="text-truncate">{{ props.item.hash }}</nuxt-link>
             </template>
 
@@ -36,13 +36,12 @@
             </template>
         </table-base>
 
-        <b-pagination-nav
+        <b-pagination
             v-if="total > 0 && total > perPage"
             v-model="currentPage"
             :total-rows="total"
             :per-page="perPage"
             :number-of-pages="pages"
-            :link-gen="linkGen"
             :limit="7"
             align="center"
             class="tomo-pagination"
@@ -83,20 +82,12 @@ export default {
             percentage: { label: 'Percentage' }
         },
         loading: true,
-        pagination: {},
         total: 0,
         items: [],
         currentPage: 1,
         perPage: 15,
         pages: 1
     }),
-    watch: {
-        $route (to, from) {
-            const hash = window.location.hash
-            const page = hash.substring(1)
-            this.onChangePaginate(page)
-        }
-    },
     async mounted () {
         this.getDataFromApi()
     },
@@ -107,10 +98,8 @@ export default {
             // Show loading.
             self.loading = true
 
-            self.currentPage = parseInt(this.$route.query.page)
-
             let params = {
-                page: self.currentPage || 1,
+                page: self.currentPage,
                 limit: self.perPage
             }
 
@@ -122,7 +111,6 @@ export default {
             let { data } = await this.$axios.get('/api/token-holders' + '?' + query)
             self.items = data.items
             self.total = data.total
-            self.currentPage = data.currentPage
             self.pages = data.pages
 
             if (self.page) {
@@ -135,20 +123,8 @@ export default {
             return data
         },
         onChangePaginate (page) {
-            let self = this
-            self.currentPage = page
-            // Set page
-            // window.location.hash = page
-
-            self.getDataFromApi()
-        },
-        linkGen (pageNum) {
-            return {
-                query: {
-                    page: pageNum
-                },
-                hash: this.parent
-            }
+            this.currentPage = page
+            this.getDataFromApi()
         }
     }
 }

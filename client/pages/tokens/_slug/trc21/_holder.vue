@@ -29,7 +29,7 @@
                                 </tr>
                                 <tr>
                                     <td>Balance</td>
-                                    <td>{{ toTomo(holderBalance, token.decimals) }} {{ symbol }}</td>
+                                    <td>{{ toTokenQuantity(holderBalance, token.decimals) }} {{ symbol }}</td>
                                 </tr>
                                 <tr>
                                     <td>Transfers</td>
@@ -131,7 +131,7 @@
                 <b-tabs class="tomo-tabs">
                     <!--:title="'Token Transfers (' + formatNumber(tokenTxsCount) + ')'"-->
                     <b-tab title="Token Transfers">
-                        <table-token-tx
+                        <table-token-tx-trc21
                             :token="hash"
                             :holder="holder"
                             :page="this"/>
@@ -159,20 +159,20 @@
 </template>
 <script>
 import mixin from '~/plugins/mixin'
-import TableTokenTx from '~/components/TableTokenTx'
 import ReadSourceCode from '~/components/ReadSourceCode'
 import ReadContract from '~/components/ReadContract'
+import TableTokenTxTrc21 from '~/components/TableTokenTxTrc21'
 
 export default {
     components: {
+        TableTokenTxTrc21,
         ReadContract,
-        ReadSourceCode,
-        TableTokenTx
+        ReadSourceCode
     },
     mixins: [mixin],
     head () {
         return {
-            title: 'Token Holder Info'
+            title: 'Token TRC21 Holder Info'
         }
     },
     data () {

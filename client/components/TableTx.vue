@@ -63,12 +63,7 @@
                 <i
                     v-if="props.item.from_model && props.item.from_model.isContract"
                     class="tm tm-icon-contract mr-1 mr-lg-2" />
-                <span
-                    v-if="address == props.item.from"
-                    class="text-truncate">{{ (props.item.from_model && props.item.from_model.accountName) ?
-                    props.item.from_model.accountName : props.item.from }}</span>
                 <nuxt-link
-                    v-else
                     :to="{name: 'address-slug', params: {slug: props.item.from}}"
                     class="text-truncate">{{ (props.item.from_model && props.item.from_model.accountName) ?
                     props.item.from_model.accountName : props.item.from }}</nuxt-link>
@@ -77,9 +72,7 @@
             <template
                 slot="arrow"
                 slot-scope="props">
-                <i
-                    :class="props.item.from == address ? 'text-danger' : 'text-success'"
-                    class="tm-arrow-right"/>
+                <i class="tm-arrow-right text-success"/>
             </template>
 
             <template
@@ -89,12 +82,7 @@
                     <i
                         v-if="props.item.to_model && props.item.to_model.isContract"
                         class="tm tm-icon-contract mr-1 mr-lg-2" />
-                    <span
-                        v-if="address == props.item.to"
-                        class="text-truncate">{{ (props.item.to_model && props.item.to_model.accountName) ?
-                        props.item.to_model.accountName : props.item.to }}</span>
                     <nuxt-link
-                        v-else
                         :to="{name: 'address-slug', params:{slug: props.item.to}}"
                         class="text-truncate">{{ (props.item.to_model && props.item.to_model.accountName) ?
                         props.item.to_model.accountName : props.item.to }}</nuxt-link>
@@ -119,13 +107,11 @@
                     {{ formatUnit(toTomo(props.item.gasPrice * props.item.gasUsed, 8)) }}</span></template>
         </table-base>
 
-        <b-pagination-nav
+        <b-pagination
             v-if="total > 0 && total > perPage"
             v-model="currentPage"
             :total-rows="total"
-            :number-of-pages="pages"
             :per-page="perPage"
-            :link-gen="linkGen"
             :limit="7"
             align="center"
             class="tomo-pagination"
@@ -144,26 +130,12 @@ export default {
     },
     mixins: [mixin],
     head () {
-        if (this.block) {
-            return {
-                title: 'Block ' + this.$route.params.slug + ' Info'
-            }
-        } else {
-            return {
-                title: this.isPending() ? 'Transactions Pending' : 'Transactions'
-            }
+        return {
+            title: this.isPending() ? 'Transactions Pending' : 'Transactions'
         }
     },
     props: {
-        address: {
-            type: String,
-            default: ''
-        },
         type: {
-            type: String,
-            default: ''
-        },
-        block: {
             type: String,
             default: ''
         },
@@ -172,18 +144,6 @@ export default {
             default: () => {
                 return {}
             }
-        },
-        block_timestamp: {
-            type: String,
-            default: ''
-        },
-        tx_account: {
-            type: String,
-            default: ''
-        },
-        tx_total: {
-            type: Number,
-            default: 0
         },
         parent: {
             type: String,
@@ -212,7 +172,6 @@ export default {
             value: { label: 'Value' }
         },
         loading: true,
-        pagination: {},
         total: 0,
         items: [],
         currentPage: 1,
@@ -220,25 +179,9 @@ export default {
         pages: 1,
         blockNumber: null
     }),
-    watch: {
-        $route (to, from) {
-            const page = this.$route.query.page
-            this.onChangePaginate(page)
-        }
-    },
     async mounted () {
         let self = this
         self.fields = self.isPending() ? self.fields_pending : self.fields_basic
-
-        // Init from router.
-        let query = self.$route.query
-
-        if (self.block) {
-            self.blockNumber = self.block
-        }
-        if (query.block) {
-            self.blockNumber = query.block
-        }
 
         self.getDataFromApi()
     },
@@ -248,34 +191,23 @@ export default {
 
             // Show loading.
             self.loading = true
-
-            self.currentPage = parseInt(this.$route.query.page)
-
             let params = {
-                page: self.currentPage || 1,
+                page: self.currentPage,
                 limit: self.perPage
             }
-            if (self.blockNumber) {
-                params.block = self.blockNumber
-            }
-            if (self.type) {
-                params.type = self.type
-            }
-
-            if (self.address) {
-                params.address = self.address
-                params.tx_account = self.tx_account
-            }
+            let txType
             if (this.$route.name === 'txs-signTxs') {
-                params.type = 'signTxs'
-            }
-            if (this.$route.name === 'txs-otherTxs') {
-                params.type = 'otherTxs'
+                txType = 'signTxs'
+            } else if (this.$route.name === 'txs-normalTxs') {
+                txType = 'normalTxs'
+            } else if (this.$route.name === 'txs-pending') {
+                txType = 'pending'
+            } else {
+                txType = 'all'
             }
             let query = this.serializeQuery(params)
-            let { data } = await this.$axios.get('/api/txs' + '?' + query)
+            let { data } = await this.$axios.get('/api/txs/listByType/' + txType + '?' + query)
             self.total = data.total || self.tx_total || (data.items || []).length
-            self.currentPage = data.currentPage
             self.pages = data.pages || (self.total % self.perPage)
 
             if (data.items.length === 0) {
@@ -327,21 +259,11 @@ export default {
             return _items
         },
         onChangePaginate (page) {
-            let self = this
-            self.currentPage = page
-
-            self.getDataFromApi()
+            this.currentPage = page
+            this.getDataFromApi()
         },
         isPending () {
             return this.type === 'pending'
-        },
-        linkGen (pageNum) {
-            return {
-                query: {
-                    page: pageNum
-                },
-                hash: this.parent
-            }
         }
     }
 }

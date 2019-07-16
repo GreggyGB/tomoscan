@@ -44,7 +44,7 @@
             <template
                 slot="slashedNode"
                 slot-scope="props">
-                {{ props.item.slashedNode.length }}
+                {{ props.item.slashedNode ? props.item.slashedNode.length : 0 }}
             </template>
         </table-base>
 
@@ -86,7 +86,6 @@ export default {
             slashedNode: { label: 'SlashedNode' }
         },
         loading: true,
-        pagination: {},
         total: 0,
         lastBlock: 0,
         items: [],
@@ -126,7 +125,7 @@ export default {
             let { data } = await this.$axios.get('/api/epochs' + '?' + query)
             self.items = data.items
             self.total = data.total
-            self.lastBlock = data.items[0].number
+            self.lastBlock = data.lastBlock
             self.currentPage = data.currentPage
             self.pages = data.pages
 

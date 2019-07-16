@@ -21,29 +21,11 @@ const mixin = {
             return [].concat.apply([], query).join('&')
         },
 
-        formatNumber: (number, limitComma = 5) => {
+        formatNumber: (number) => {
             number = new BigNumber(number.toString())
             let seps = number.toString().split('.')
             seps[0] = seps[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-            if (seps[1]) {
-                seps[1] = seps[1].toString().substring(0, limitComma)
-            }
-
-            let ret = seps.join('.')
-            let count = limitComma
-            let sCompare = '0.'
-            let str = '0.'
-            while (count > 0) {
-                count--
-                sCompare += '0'
-                if (count >= 1) {
-                    str += '0'
-                }
-            }
-            if (ret === sCompare) {
-                ret = `< ${str}1`
-            }
-            return ret
+            return seps.join('.')
         },
 
         toLongNumberString: (n) => {
@@ -69,7 +51,7 @@ const mixin = {
             return str + str2
         },
 
-        toTomo: (wei, limitComma = 5) => {
+        toTomo: (wei) => {
             if (isNaN(wei)) {
                 return '0'
             }
@@ -86,7 +68,7 @@ const mixin = {
 
             weiNumber = weiNumber.dividedBy(divided).toString()
 
-            return mixin.methods.formatNumber(weiNumber, limitComma)
+            return mixin.methods.formatNumber(weiNumber)
         },
 
         toTokenQuantity: (wei, decimal) => {
@@ -106,7 +88,7 @@ const mixin = {
 
             weiNumber = weiNumber.dividedBy(divided).toString()
 
-            return mixin.methods.formatNumber(weiNumber, decimal)
+            return mixin.methods.formatNumber(weiNumber)
         },
 
         toTomoNumber: (wei) => {
@@ -203,14 +185,24 @@ const mixin = {
                 }
             })
         },
+        refreshInputTxCodeMirror () {
+            this.$nextTick(() => {
+                if (this.$refs['readSourceCode']) {
+                    let readSourceCode = this.$refs['readSourceCode']
+                    readSourceCode.refresh()
+                }
+            })
+        },
         async filterAddress (filter, tokenType) {
             if (filter) {
                 let search = filter.trim()
                 let to
                 if (tokenType === 'trc20') {
-                    to = { name: 'tokens-slug-holder-holder', params: { slug: this.hash, holder: search } }
+                    to = { name: 'tokens-slug-trc20-holder', params: { slug: this.hash, holder: search } }
                 } else if (tokenType === 'trc721') {
-                    to = { name: 'tokens-slug-nftHolder-holder', params: { slug: this.hash, holder: search } }
+                    to = { name: 'tokens-slug-trc721-holder', params: { slug: this.hash, holder: search } }
+                } else if (tokenType === 'trc21') {
+                    to = { name: 'tokens-slug-trc21-holder', params: { slug: this.hash, holder: search } }
                 }
                 return this.$router.push(to)
             }
