@@ -45,13 +45,12 @@
             </template>
         </table-base>
 
-        <b-pagination-nav
+        <b-pagination
             v-if="total > 0 && total > perPage"
             v-model="currentPage"
             :total-rows="total"
             :per-page="perPage"
             :number-of-pages="pages"
-            :link-gen="linkGen"
             :limit="7"
             align="center"
             class="tomo-pagination"
@@ -79,28 +78,17 @@ export default {
             balance: { label: 'Balance' }
         },
         loading: true,
-        pagination: {},
         total: 0,
         items: [],
         currentPage: 1,
         perPage: 20,
         pages: 1
     }),
-    watch: {
-        $route (to, from) {
-            const page = this.$route.query.page
-            this.onChangePaginate(page)
-        }
-    },
     async mounted () {
         let self = this
 
         // Init breadcrumbs data.
         this.$store.commit('breadcrumb/setItems', { name: 'accounts', to: { name: 'accounts' } })
-
-        const query = this.$route.query
-
-        self.currentPage = parseInt(query.page)
 
         await self.getDataFromApi()
     },
@@ -120,7 +108,6 @@ export default {
             let { data } = await this.$axios.get('/api/accounts' + '?' + query)
             self.items = data.items
             self.total = data.total
-            self.currentPage = data.currentPage
             self.pages = data.pages
 
             // Hide loading.
@@ -130,17 +117,8 @@ export default {
         },
 
         onChangePaginate (page) {
-            let self = this
-            self.currentPage = page
-            self.getDataFromApi()
-        },
-
-        linkGen (pageNum) {
-            return {
-                query: {
-                    page: pageNum
-                }
-            }
+            this.currentPage = page
+            this.getDataFromApi()
         }
     }
 }

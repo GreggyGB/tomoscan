@@ -127,6 +127,14 @@ br.register('tokentxs', (brs) => {
     brs.parent('index')
     brs.push('Token (TRC20) Transfers', { name: 'tokentxs' })
 })
+br.register('tokentxs-nft', (brs) => {
+    brs.parent('index')
+    brs.push('Token (TRC721) Transfers', { name: 'tokentxs-nft' })
+})
+br.register('tokentxs-trc21', (brs) => {
+    brs.parent('index')
+    brs.push('Token (TRC21) Transfers', { name: 'tokentxs-trc21' })
+})
 br.register('follows', (brs) => {
     brs.parent('index')
     brs.push('Follow List', { name: 'follows' })
@@ -149,7 +157,7 @@ br.register('sign-txs', (brs) => {
 })
 br.register('other-txs', (brs) => {
     brs.parent('txs')
-    brs.push('Normal Transactions', { name: 'txs-otherTxs' })
+    brs.push('Normal Transactions', { name: 'txs-normalTxs' })
 })
 br.register('masternodes', (brs) => {
     brs.parent('accounts')

@@ -27,24 +27,15 @@ let BlockHelper = {
         if (!_block) {
             return null
         }
+        let { m1, m2 } = await utils.getM1M2(_block)
+        _block.m2 = m2
+        _block.signer = m1
 
         let timestamp = _block.timestamp * 1000
-
-        // Get signer.
-        let signer = await utils.toAddress(await utils.getSigner(_block), 100)
-        signer = signer.toLowerCase()
-
-        try {
-            _block.m2 = await utils.getM2(_block)
-        } catch (e) {
-            logger.warn('Cannot get m2 of block %s. Error %s', _block.number, e)
-            _block.m2 = 'N/A'
-        }
 
         // Update end tx count.
         _block.timestamp = timestamp
         _block.e_tx = _block.transactions.length
-        _block.signer = signer
 
         let data = {
             'jsonrpc': '2.0',
@@ -74,7 +65,56 @@ let BlockHelper = {
         await db.Block.updateOne({ number: _block.number }, _block,
             { upsert: true, new: true })
 
-        return { txs, timestamp, signer }
+        if (_block.number % config.get('BLOCK_PER_EPOCH') === 0) {
+            let slashedNode = []
+            let blk = await BlockHelper.getBlock(_block.number)
+            if (blk.penalties && blk.penalties !== '0x') {
+                let sbuff = Buffer.from((blk.penalties || '').substring(2), 'hex')
+                if (sbuff.length > 0) {
+                    for (let i = 1; i <= sbuff.length / 20; i++) {
+                        let address = sbuff.slice((i - 1) * 20, i * 20)
+                        let add = '0x' + address.toString('hex')
+                        slashedNode.push(add.toLowerCase())
+                    }
+                }
+            }
+
+            let buff = Buffer.from(blk.extraData.substring(2), 'hex')
+            let sbuff = buff.slice(32, buff.length - 65)
+            let signers = []
+            if (sbuff.length > 0) {
+                for (let i = 1; i <= sbuff.length / 20; i++) {
+                    let address = sbuff.slice((i - 1) * 20, i * 20)
+                    signers.push('0x' + address.toString('hex'))
+                }
+            }
+            let epoch = _block.number / config.get('BLOCK_PER_EPOCH')
+
+            // TODO: update slash for next 5 epochs
+            if (slashedNode.length > 0) {
+                for (let i = 0; i < 5; i++) {
+                    let nextEpoch = epoch + 1 + i
+                    let e = await db.Epoch.findOne({ epoch: nextEpoch })
+                    if (e) {
+                        let sn = e.slashedNode
+                        let newArr = sn.concat(slashedNode)
+                        e.slashedNode = Array.from(new Set(newArr))
+                        await e.save()
+                    } else {
+                        let ne = new db.Epoch({
+                            epoch: nextEpoch,
+                            startBlock: (nextEpoch - 1) * 900 + 1,
+                            endBlock: nextEpoch * 900,
+                            slashedNode: slashedNode,
+                            isActive: false
+                        })
+                        await ne.save()
+                    }
+                }
+            }
+        }
+
+        return { txs, timestamp, m1 }
     },
     getBlockDetail: async (hashOrNumber) => {
         try {
@@ -91,16 +131,10 @@ let BlockHelper = {
             if (!_block) {
                 return null
             }
-            // Get signer.
-            let signer = await utils.toAddress(await utils.getSigner(_block), 100)
-            _block.signer = signer.toLowerCase()
+            let { m1, m2 } = await utils.getM1M2(_block)
 
-            try {
-                _block.m2 = await utils.getM2(_block)
-            } catch (e) {
-                logger.warn('Cannot get m2 of block %s. Error %s', _block.number, e)
-                _block.m2 = 'N/A'
-            }
+            _block.m2 = m2
+            _block.signer = m1
 
             // Update end tx count.
             _block.timestamp = _block.timestamp * 1000

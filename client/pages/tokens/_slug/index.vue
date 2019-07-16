@@ -143,6 +143,11 @@
                             :token="hash"
                             :parent="'#tokenTransfers'"
                             :page="this"/>
+                        <table-token-tx-trc21
+                            v-if="token.type === 'trc21'"
+                            :token="hash"
+                            :parent="'#tokenTransfers'"
+                            :page="this"/>
                     </b-tab>
                     <!--:title="'Token Holders (' + formatNumber(holdersCount) + ')'"-->
                     <b-tab
@@ -155,6 +160,11 @@
                             :page="this"/>
                         <table-token-nft-holder
                             v-if="token.type === 'trc721'"
+                            :address="hash"
+                            :parent="'#tokenHolders'"
+                            :page="this"/>
+                        <table-token-trc21-holder
+                            v-if="token.type === 'trc21'"
                             :address="hash"
                             :parent="'#tokenHolders'"
                             :page="this"/>
@@ -186,8 +196,10 @@
 import mixin from '~/plugins/mixin'
 import TableTokenTx from '~/components/TableTokenTx'
 import TableTokenTxNft from '~/components/TableTokenTxNft'
+import TableTokenTxTrc21 from '~/components/TableTokenTxTrc21'
 import TableTokenHolder from '~/components/TableTokenHolder'
 import TableTokenNftHolder from '~/components/TableTokenNftHolder'
+import TableTokenTrc21Holder from '~/components/TableTokenTrc21Holder'
 import ReadContract from '~/components/ReadContract'
 import ReadSourceCode from '~/components/ReadSourceCode'
 
@@ -196,9 +208,11 @@ export default {
         ReadSourceCode,
         TableTokenTx,
         TableTokenTxNft,
+        TableTokenTxTrc21,
         ReadContract,
         TableTokenHolder,
-        TableTokenNftHolder
+        TableTokenNftHolder,
+        TableTokenTrc21Holder
     },
     mixins: [mixin],
     head () {

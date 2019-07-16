@@ -76,19 +76,11 @@ export default {
                 createdAt: { label: 'Date Verified' }
             },
             loading: true,
-            pagination: {},
             total: 0,
             items: [],
             currentPage: 1,
             perPage: 20,
             pages: 1
-        }
-    },
-    watch: {
-        $route (to, from) {
-            const hash = window.location.hash
-            const page = hash.substring(1)
-            this.onChangePaginate(page)
         }
     },
     mounted () {
@@ -106,7 +98,7 @@ export default {
             self.loading = true
 
             let params = {
-                page: self.currentPage || 1,
+                page: self.currentPage,
                 limit: self.perPage
             }
 
@@ -118,7 +110,6 @@ export default {
             let { data } = await this.$axios.get('/api/contracts' + '?' + query)
             self.items = data.items
             self.total = data.total
-            self.currentPage = data.currentPage
             self.pages = data.pages
 
             // Hide loading.
@@ -127,12 +118,8 @@ export default {
             return data
         },
         onChangePaginate (page) {
-            let self = this
-            self.currentPage = page
-            // Set page
-            window.location.hash = page
-
-            self.getDataFromApi()
+            this.currentPage = page
+            this.getDataFromApi()
         }
     }
 }

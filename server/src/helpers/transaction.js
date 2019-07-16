@@ -42,6 +42,8 @@ let TransactionHelper = {
             let tx = await db.Tx.findOne({ hash : hash })
             if (!tx) {
                 tx = await TransactionHelper.getTransaction(hash, true)
+            } else {
+                tx = tx.toJSON()
             }
             const q = require('../queues')
 
@@ -151,11 +153,10 @@ let TransactionHelper = {
                 for (let i = 0; i < logs.length; i++) {
                     let log = logs[i]
                     await TransactionHelper.parseLog(log)
-                    // Save log into db.
-                    await db.Log.updateOne({ id: log.id }, log,
-                        { upsert: true, new: true })
                     logCount.push({ hash: log.address.toLowerCase(), countType: 'log' })
                 }
+                await db.Log.deleteMany({ transactionHash: receipt.hash })
+                await db.Log.insertMany(logs)
                 if (logCount.length > 0) {
                     q.create('CountProcess', { data: JSON.stringify(logCount) })
                         .priority('low').removeOnComplete(true)
@@ -188,6 +189,7 @@ let TransactionHelper = {
 
             await db.Tx.updateOne({ hash: hash }, tx,
                 { upsert: true, new: true })
+            tx.to_model = await db.Account.findOne({ hash: tx.to })
             let cacheOut = await redisHelper.get(`txs-out-${tx.from}`)
             if (cacheOut !== null) {
                 let r1 = JSON.parse(cacheOut)
@@ -383,35 +385,40 @@ let TransactionHelper = {
         const response = await axios.post(config.get('WEB3_URI'), data)
         let result = response.data
         if (!result.error) {
-            let web3 = await Web3Util.getWeb3()
             let res = result.result
             if (res.hasOwnProperty('calls')) {
                 let calls = res.calls
-                let map = calls.map(async function (call) {
-                    if (call.type === 'CALL') {
-                        if (call.value !== '0x0') {
-                            let from = (call.from || '').toLowerCase()
-                            let to = (call.to || '').toLowerCase()
-
-                            internalTx.push({
-                                hash: transaction.hash,
-                                blockNumber: transaction.blockNumber,
-                                from: from,
-                                to: to,
-                                value: web3.utils.hexToNumberString(call.value),
-                                timestamp: transaction.timestamp
-                            })
-                        }
-                    }
-                })
-                await Promise.all(map)
+                internalTx = await TransactionHelper.listInternal(
+                    calls, transaction.hash, transaction.blockNumber, transaction.timestamp)
             }
         }
         if (internalTx.length > 0) {
-            await db.InternalTx.deleteOne({ hash: transaction.hash })
+            await db.InternalTx.deleteMany({ hash: transaction.hash })
             await db.InternalTx.insertMany(internalTx)
         }
         return internalTx
+    },
+    listInternal: async (resultCalls, txHash, blockNumber, timestamp) => {
+        let web3 = await Web3Util.getWeb3()
+        let internals = []
+        for (let i = 0; i < resultCalls.length; i++) {
+            let call = resultCalls[i]
+            if (call.value !== '0x0') {
+                internals.push({
+                    hash: txHash,
+                    blockNumber: blockNumber,
+                    from: (call.from || '').toLowerCase(),
+                    to: (call.to || '').toLowerCase(),
+                    value: web3.utils.hexToNumberString(call.value),
+                    timestamp: timestamp
+                })
+            }
+            if (call.calls) {
+                let childInternal = await TransactionHelper.listInternal(call.calls, txHash, blockNumber, timestamp)
+                internals = internals.concat(childInternal)
+            }
+        }
+        return internals
     }
 }
 

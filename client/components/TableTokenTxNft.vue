@@ -58,11 +58,12 @@
                     v-if="props.item.from_model && props.item.from_model.isContract"
                     class="tm tm-icon-contract mr-1 mr-lg-2"/>
                 <span
-                    v-if="address == props.item.from"
+                    v-if="holder === props.item.from"
                     class="text-truncate">{{ props.item.from }}</span>
                 <nuxt-link
                     v-else
-                    :to="{name: 'address-slug', params: {slug: props.item.from}}"
+                    :to="{name: 'tokens-slug-trc721-holder',
+                          params: {slug: props.item.address, holder: props.item.from}}"
                     class="text-truncate">{{ props.item.from }}</nuxt-link>
             </template>
 
@@ -70,7 +71,7 @@
                 slot="arrow"
                 slot-scope="props">
                 <i
-                    :class="props.item.from == address ? 'text-danger' : 'text-success'"
+                    :class="props.item.from === holder ? 'text-danger' : 'text-success'"
                     class="tm-arrow-right"/>
             </template>
 
@@ -82,24 +83,24 @@
                         v-if="props.item.to_model && props.item.to_model.isContract"
                         class="tm tm-icon-contract mr-1 mr-lg-2"/>
                     <span
-                        v-if="address == props.item.to"
+                        v-if="holder === props.item.to"
                         class="text-truncate">{{ props.item.to }}</span>
                     <nuxt-link
                         v-else
-                        :to="{name: 'address-slug', params:{slug: props.item.to}}"
+                        :to="{name: 'tokens-slug-trc721-holder',
+                              params: {slug: props.item.address, holder: props.item.to}}"
                         class="text-truncate">{{ props.item.to }}</nuxt-link>
                 </div>
             </template>
 
         </table-base>
 
-        <b-pagination-nav
+        <b-pagination
             v-if="total > 0 && total > perPage"
             v-model="currentPage"
             :total-rows="total"
             :per-page="perPage"
             :number-of-pages="pages"
-            :link-gen="linkGen"
             :limit="7"
             align="center"
             class="tomo-pagination"
@@ -142,7 +143,6 @@ export default {
             tokenId: { label: 'Token ID' }
         },
         loading: true,
-        pagination: {},
         total: 0,
         items: [],
         currentPage: 1,
@@ -150,12 +150,6 @@ export default {
         pages: 1,
         address: null
     }),
-    watch: {
-        $route (to, from) {
-            const page = this.$route.query.page
-            this.onChangePaginate(page)
-        }
-    },
     async mounted () {
         let self = this
         // Init from router.
@@ -174,28 +168,22 @@ export default {
             // Show loading.
             self.loading = true
 
-            self.currentPage = parseInt(this.$route.query.page)
-
             let params = {
-                page: self.currentPage || 1,
+                page: self.currentPage,
                 limit: self.perPage
             }
 
             if (self.token) {
                 params.token = self.token
             }
-            if (self.address) {
-                params.address = self.address
-            }
             if (self.holder) {
-                params.address = self.holder
+                params.holder = self.holder
             }
 
             let query = this.serializeQuery(params)
-            let { data } = await this.$axios.get('/api/token-txs/nft' + '?' + query)
+            let { data } = await this.$axios.get('/api/token-txs/trc721' + '?' + query)
             self.items = data.items
             self.total = data.total
-            self.currentPage = data.currentPage
             self.pages = data.pages
 
             if (self.page) {
@@ -228,18 +216,8 @@ export default {
             return _items
         },
         onChangePaginate (page) {
-            let self = this
-            self.currentPage = page
-
-            self.getDataFromApi()
-        },
-        linkGen (pageNum) {
-            return {
-                query: {
-                    page: pageNum
-                },
-                hash: this.parent
-            }
+            this.currentPage = page
+            this.getDataFromApi()
         }
     }
 }

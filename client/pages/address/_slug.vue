@@ -41,7 +41,10 @@
                         <tr>
                             <td>CLMP USD Value</td>
                             <td>
-                                <span>{{ formatNumber(usdPrice * toTomoNumber(address.balance), 18) }}</span>
+                                <span>{{ formatNumber(usdPrice * toTomoNumber(address.balance)) }} (price from
+                                    <a
+                                        target="_blank"
+                                        href="https://www.coingecko.com/en/coins/tomochain">CoinGecko</a>)</span>
                             </td>
                         </tr>
                         <tr>
@@ -134,10 +137,9 @@
                 id="inTransactions"
                 title="In Transactions"
                 href="#inTransactions">
-                <table-tx
+                <table-tx-by-account
                     :address="hash"
-                    :tx_total="inTxsCount"
-                    :tx_account="'in'"
+                    :type="'in'"
                     :parent="'#inTransactions'"
                     :page="this"/>
             </b-tab>
@@ -147,10 +149,9 @@
                 id="outTransactions"
                 title="Out Transactions"
                 href="#outTransactions">
-                <table-tx
+                <table-tx-by-account
                     :address="hash"
-                    :tx_total="outTxsCount"
-                    :tx_account="'out'"
+                    :type="'out'"
                     :parent="'#outTransactions'"
                     :page="this"/>
             </b-tab>
@@ -164,37 +165,49 @@
                     :parent="'#internalTransactions'"
                     :page="this"/>
             </b-tab>
-            <!--:title="'Token Transactions (' + formatNumber(tokenTxsCount) + ')'"-->
-            <b-tab
-                v-if="!address.isContract"
-                id="tokenTransactions"
-                title="Token Transactions"
-                href="#tokenTransactions">
-                <table-token-tx
-                    :holder="hash"
-                    :tx_total="tokenTxsCount"
-                    :parent="'#tokenTransactions'"
-                    :page="this"/>
-            </b-tab>
             <!--:title="'Created Blocks (' + formatNumber(blocksCount) + ')'"-->
             <b-tab
                 v-if="!address.isContract"
                 id="minedBlocks"
                 title="Created Blocks"
                 href="#minedBlocks">
-                <table-tx-by-account
+                <table-block-by-account
+                    :address="hash"
                     :page="this"
                     :parent="'minedBlocks'"/>
             </b-tab>
             <!--:title="'Token Holding (' + formatNumber(tokensCount) + ')'"-->
             <b-tab
-                v-if="address && address.hashTokens"
-                id="tokenHolding"
-                title="Token Holding"
-                href="#tokenHolding">
+                v-if="address && address.hasTrc20"
+                id="trc20Holding"
+                title="TRC20 Holding"
+                href="#trc20Holding">
                 <table-tokens-by-account
-                    :address="hash"
-                    :parent="'tokenHolding'"
+                    :holder="hash"
+                    :token_type="'trc20'"
+                    :parent="'trc20Holding'"
+                    :page="this"/>
+            </b-tab>
+            <b-tab
+                v-if="address && address.hasTrc21"
+                id="trc21Holding"
+                title="TRC21 Holding"
+                href="#trc21Holding">
+                <table-tokens-by-account
+                    :holder="hash"
+                    :token_type="'trc21'"
+                    :parent="'trc21Holding'"
+                    :page="this"/>
+            </b-tab>
+            <b-tab
+                v-if="address && address.hasTrc721"
+                id="trc721Inventory"
+                title="TRC721 Inventory"
+                href="#trc721Inventory">
+                <table-tokens-by-account
+                    :holder="hash"
+                    :token_type="'trc721'"
+                    :parent="'trc721Inventory'"
                     :page="this"/>
             </b-tab>
             <b-tab
@@ -245,10 +258,11 @@
 <script>
 import mixin from '~/plugins/mixin'
 import TableTx from '~/components/TableTx'
+import TableTxByAccount from '~/components/TableTxByAccount'
 import TableInternalTx from '~/components/TableInternalTx'
 import TableTokenTx from '~/components/TableTokenTx'
 import TableTokensByAccount from '~/components/TableTokensByAccount'
-import TableTxByAccount from '~/components/TableTxByAccount'
+import TableBlockByAccount from '~/components/TableBlockByAccount'
 import TableEvent from '~/components/TableEvent'
 import ReadMore from '~/components/ReadMore'
 import VueQrcode from '@xkeshi/vue-qrcode'
@@ -260,10 +274,11 @@ export default {
     components: {
         ReadSourceCode,
         TableTx,
+        TableTxByAccount,
         TableInternalTx,
         TableTokenTx,
         TableTokensByAccount,
-        TableTxByAccount,
+        TableBlockByAccount,
         TableEvent,
         ReadMore,
         VueQrcode,
@@ -311,7 +326,7 @@ export default {
     created () {
         let hash = this.$route.params.slug
         if (hash) {
-            this.hash = hash
+            this.hash = hash.toLowerCase()
         }
     },
     mounted () {
@@ -374,7 +389,6 @@ export default {
             const allTabs = this.$refs.allTabs
             const location = window.location
             const value = this.tabIndex
-            console.log(value)
             if (allTabs) {
                 // if (location.hash !== allTabs.tabs[value].href) {
                 //     this.$router.replace({
