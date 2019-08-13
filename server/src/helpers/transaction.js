@@ -5,33 +5,61 @@ const contractAddress = require('../contracts/contractAddress')
 const db = require('../models')
 const logger = require('./logger')
 const BlockHelper = require('./block')
-const axios = require('axios')
+const request = require('request')
 const config = require('config')
 const redisHelper = require('./redis')
+const BigNumber = require('bignumber.js')
+const accountName = require('../contracts/accountName')
 
 let sleep = (time) => new Promise((resolve) => setTimeout(resolve, time))
 let TransactionHelper = {
     parseLog: async (log) => {
         const TOPIC_TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
-        if (log.topics[0] !== TOPIC_TRANSFER) {
-            return false
-        }
 
-        let address = log.address.toLowerCase()
-        // Add account and token if not exist in db.
-        let token = await db.Token.findOne({ hash: address })
-        const q = require('../queues')
-        if (!token) {
-            q.create('AccountProcess', { listHash: JSON.stringify([address]) })
-                .priority('low').removeOnComplete(true)
+        // Topic of Constant-NetworkProxy contract
+        const TopicExecuteTrade = '0x1849bd6a030a1bca28b83437fd3de96f3d27a5d172fa7e9c78e7b61468928a39'
+        if (log.topics[0] === TOPIC_TRANSFER) {
+            let address = log.address.toLowerCase()
+            // Add account and token if not exist in db.
+            let token = await db.Token.findOne({ hash: address })
+            const q = require('../queues')
+            if (!token) {
+                q.create('AccountProcess', { listHash: JSON.stringify([address]) })
+                    .priority('low').removeOnComplete(true)
+                    .attempts(5).backoff({ delay: 2000, type: 'fixed' }).save()
+                q.create('TokenProcess', { address: address })
+                    .priority('low').removeOnComplete(true)
+                    .attempts(5).backoff({ delay: 2000, type: 'fixed' }).save()
+            }
+            q.create('TokenTransactionProcess', { log: JSON.stringify(log) })
+                .priority('normal').removeOnComplete(true)
                 .attempts(5).backoff({ delay: 2000, type: 'fixed' }).save()
-            q.create('TokenProcess', { address: address })
-                .priority('low').removeOnComplete(true)
-                .attempts(5).backoff({ delay: 2000, type: 'fixed' }).save()
+        } else if (log.topics[0] === TopicExecuteTrade) {
+            let data = log.data.replace('0x', '')
+            let params = []
+            for (let i = 0; i < data.length / 64; i++) {
+                params.push(data.substr(i * 64, 64))
+            }
+            let web3 = await Web3Util.getWeb3()
+            if (params.length >= 4) {
+                let tomoAmount = new BigNumber(web3.utils.hexToNumberString('0x' + params[2]))
+                tomoAmount = tomoAmount.dividedBy(10 ** 18)
+                let constantAmount = new BigNumber(web3.utils.hexToNumberString('0x' + params[3]))
+                constantAmount = constantAmount.dividedBy(10 ** 2)
+
+                let tomoRate = constantAmount.dividedBy(tomoAmount).toNumber()
+
+                let txExtraInfo = [
+                    {
+                        transactionHash: log.transactionHash,
+                        infoName: 'Swap rate',
+                        infoValue: `1 TOMO = ${tomoRate} CONST`
+                    }
+                ]
+                await db.TxExtraInfo.insertMany(txExtraInfo)
+            }
         }
-        q.create('TokenTransactionProcess', { log: JSON.stringify(log) })
-            .priority('normal').removeOnComplete(true)
-            .attempts(5).backoff({ delay: 2000, type: 'fixed' }).save()
+        return false
     },
     crawlTransaction: async (hash, timestamp) => {
         hash = hash.toLowerCase()
@@ -68,6 +96,15 @@ let TransactionHelper = {
                         listHash.push(tx.from.toLowerCase())
                     }
                 }
+
+                let fromModel = await db.Account.findOne({ hash: tx.from })
+                if (fromModel) {
+                    tx.from_model = {
+                        accountName: accountName[tx.from] ? accountName[tx.from] : '',
+                        isContract: fromModel.isContract,
+                        contractCreation: fromModel.contractCreation
+                    }
+                }
             }
             if (tx.to !== null) {
                 tx.to = tx.to.toLowerCase()
@@ -88,10 +125,18 @@ let TransactionHelper = {
                     other = 1
                 }
 
+                let toModel = await db.Account.findOne({ hash: tx.to })
+                if (toModel) {
+                    tx.to_model = {
+                        accountName: accountName[tx.to] ? accountName[tx.to] : '',
+                        isContract: toModel.isContract,
+                        contractCreation: toModel.contractCreation
+                    }
+                }
+
                 await db.SpecialAccount.updateOne(
                     { hash: 'transaction' }, { $inc: {
                         total: 1,
-                        pending: -1,
                         sign: sign,
                         other: other
                     } }, { upsert: true, new: true })
@@ -189,7 +234,6 @@ let TransactionHelper = {
 
             await db.Tx.updateOne({ hash: hash }, tx,
                 { upsert: true, new: true })
-            tx.to_model = await db.Account.findOne({ hash: tx.to })
             let cacheOut = await redisHelper.get(`txs-out-${tx.from}`)
             if (cacheOut !== null) {
                 let r1 = JSON.parse(cacheOut)
@@ -375,26 +419,38 @@ let TransactionHelper = {
         if (transaction.i_tx === itx.length) {
             return itx
         }
+
         let internalTx = []
-        let data = {
-            'jsonrpc': '2.0',
-            'method': 'debug_traceTransaction',
-            'params': [transaction.hash, { tracer: 'callTracer' }],
-            'id': 88
-        }
-        const response = await axios.post(config.get('WEB3_URI'), data)
-        let result = response.data
-        if (!result.error) {
-            let res = result.result
-            if (res.hasOwnProperty('calls')) {
-                let calls = res.calls
-                internalTx = await TransactionHelper.listInternal(
-                    calls, transaction.hash, transaction.blockNumber, transaction.timestamp)
+        try {
+            let result = await new Promise((resolve, reject) => {
+                request.post(config.get('WEB3_URI'), {
+                    json: {
+                        'jsonrpc': '2.0',
+                        'method': 'debug_traceTransaction',
+                        'params': [transaction.hash, { tracer: 'callTracer' }],
+                        'id': 88
+                    }
+                }, (error, res, body) => {
+                    if (error) {
+                        return reject
+                    }
+                    return resolve(body)
+                })
+            })
+            if (!result.error) {
+                let res = result.result
+                if (res.hasOwnProperty('calls')) {
+                    let calls = res.calls
+                    internalTx = await TransactionHelper.listInternal(
+                        calls, transaction.hash, transaction.blockNumber, transaction.timestamp)
+                }
             }
-        }
-        if (internalTx.length > 0) {
-            await db.InternalTx.deleteMany({ hash: transaction.hash })
-            await db.InternalTx.insertMany(internalTx)
+            if (internalTx.length > 0) {
+                await db.InternalTx.deleteMany({ hash: transaction.hash })
+                await db.InternalTx.insertMany(internalTx)
+            }
+        } catch (e) {
+            logger.warn('Cannot get internal tx. %s', e)
         }
         return internalTx
     },

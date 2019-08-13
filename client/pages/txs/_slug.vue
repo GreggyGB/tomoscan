@@ -141,6 +141,10 @@
                                                 </small>
                                             </td>
                                         </tr>
+                                        <tr v-if="tx.trc21FeeFund >= 0">
+                                            <td>TRC21 Fee Fund</td>
+                                            <td>{{ formatUnit(toTomo(tx.trc21FeeFund, 18)) }}</td>
+                                        </tr>
                                         <tr>
                                             <td>Value</td>
                                             <td>{{ formatUnit(toTomo(tx.value, 18)) }}</td>
@@ -298,6 +302,12 @@
                                                 </span>
                                             </td>
                                         </tr>
+                                        <tr
+                                            v-for="(info, index) in tx.extraInfo"
+                                            :key="index">
+                                            <td>{{ info.infoName }}</td>
+                                            <td>{{ info.infoValue }}</td>
+                                        </tr>
                                         <tr>
                                             <td>Input Data</td>
                                             <td>
@@ -400,7 +410,7 @@ export default {
 
         self.eventsCount = responses[1].data.events
 
-        if (self.tx.trc21Txs && self.tx.to_model) {
+        if (self.tx.trc21Txs && self.tx.trc21Txs.length > 1 && self.tx.to_model) {
             self.tokenFee.tokenOwner = self.tx.to_model.contractCreation
             for (let i = 0; i < self.tx.trc21Txs.length; i++) {
                 if (self.tokenFee.tokenOwner === self.tx.trc21Txs[i].to) {

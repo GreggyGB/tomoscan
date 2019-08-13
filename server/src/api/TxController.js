@@ -11,6 +11,8 @@ const contractAddress = require('../contracts/contractAddress')
 const accountName = require('../contracts/accountName')
 const logger = require('../helpers/logger')
 const { check, validationResult } = require('express-validator/check')
+const TomoIssuer = require('../contracts/abi/TomoIssuer')
+const config = require('config')
 
 const TxController = Router()
 
@@ -52,6 +54,7 @@ TxController.get('/txs', [
                 txAccount = 'all'
                 params.query = Object.assign({}, params.query, { $or: [{ from: address }, { to: address }] })
             }
+            /*
             if (page === 1) {
                 let cache = await redisHelper.get(`txs-${txAccount}-${address}`)
                 if (cache !== null) {
@@ -60,6 +63,7 @@ TxController.get('/txs', [
                     return res.json(r)
                 }
             }
+            */
         } else if (blockNumber) {
             params.query = Object.assign({}, params.query, { blockNumber: blockNumber })
             isBlock = true
@@ -301,7 +305,8 @@ TxController.get('/txs/listByAccount/:address', [
     check('limit').optional().isInt({ max: 100 }).withMessage('Limit is less than 101 items per page'),
     check('page').optional().isInt().withMessage('Require page is number'),
     check('address').exists().isLength({ min: 42, max: 42 }).withMessage('Account address is incorrect.'),
-    check('tx_type').optional().isString().withMessage('tx_type = in|out. if equal null return all')
+    check('tx_type').optional().isString().withMessage('tx_type = in|out. if equal null return all'),
+    check('filterAddress').optional().isLength({ min: 42, max: 42 }).isString().withMessage('Filter address incorrect')
 ], async (req, res) => {
     let errors = validationResult(req)
     if (!errors.isEmpty()) {
@@ -312,6 +317,7 @@ TxController.get('/txs/listByAccount/:address', [
     let page = !isNaN(req.query.page) ? parseInt(req.query.page) : 1
     let txType = req.query.tx_type
 
+    /*
     if (page === 1) {
         let cache = await redisHelper.get(`txs-${txType}-${address}`)
         if (cache !== null) {
@@ -320,6 +326,7 @@ TxController.get('/txs/listByAccount/:address', [
             return res.json(r)
         }
     }
+    */
 
     let account = await db.Account.findOne({ hash: address })
     let total = null
@@ -341,6 +348,15 @@ TxController.get('/txs/listByAccount/:address', [
             total = account.totalTxCount
         }
     }
+
+    if (req.query.filterAddress) {
+        if (txType === 'in') {
+            params.query = Object.assign({}, params.query, { from: req.query.filterAddress })
+        } else if (txType === 'out') {
+            params.query = Object.assign({}, params.query, { to: req.query.filterAddress })
+        }
+    }
+    console.log(params)
     let data = await paginate(req, 'Tx', params, total)
     for (let i = 0; i < data.items.length; i++) {
         if (data.items[i].from_model) {
@@ -484,6 +500,26 @@ TxController.get(['/txs/:slug', '/tx/:slug'], [
         trc21Txs = await TokenTransactionHelper.formatTokenTransaction(trc21Txs)
         tx.trc21Txs = trc21Txs
 
+        let trc21FeeFund = -1
+        if (trc21Txs.length > 0) {
+            let web3 = await await Web3Util.getWeb3()
+            let contract = new web3.eth.Contract(TomoIssuer, config.get('TOMOISSUER'))
+            let listToken = await contract.methods.tokens().call()
+            let isRegisterOnTomoIssuer = false
+            for (let i = 0; i < listToken.length; i++) {
+                if (listToken[i].toLowerCase() === tx.to.toLowerCase()) {
+                    isRegisterOnTomoIssuer = true
+                    break
+                }
+            }
+            if (isRegisterOnTomoIssuer) {
+                trc21FeeFund = await contract.methods.getTokenCapacity(tx.to).call()
+            } else {
+                trc21FeeFund = -1
+            }
+        }
+        tx.trc21FeeFund = trc21FeeFund
+
         let trc721Txs = await db.TokenNftTx.find({ transactionHash: tx.hash }).maxTimeMS(20000)
         trc721Txs = await TokenTransactionHelper.formatTokenTransaction(trc721Txs)
         tx.trc721Txs = trc721Txs
@@ -496,6 +532,7 @@ TxController.get(['/txs/:slug', '/tx/:slug'], [
             let method = input.substr(0, 10)
             let stringParams = input.substr(10, input.length - 1)
             let params = []
+            let paramsType = []
             for (let i = 0; i < stringParams.length / 64; i++) {
                 params.push(stringParams.substr(i * 64, 64))
             }
@@ -520,6 +557,7 @@ TxController.get(['/txs/:slug', '/tx/:slug'], [
                                         } else {
                                             functionString += `, ${input.type} ${input.name}`
                                         }
+                                        paramsType.push(input.type)
                                     }
                                 }
                             })
@@ -537,11 +575,24 @@ TxController.get(['/txs/:slug', '/tx/:slug'], [
             if (tx.to !== null) {
                 inputData += 'MethodID: ' + method
                 for (let i = 0; i < params.length; i++) {
-                    inputData += `\n[${i}]: ${params[i]}`
+                    console.log('type', paramsType[i], params[i])
+                    let decodeValue = ''
+                    let uint = ['uint', 'uint8', 'uint8', 'uint16', 'uint32', 'uint64', 'uint128', 'uint256']
+                    if (uint.includes(paramsType[i])) {
+                        decodeValue = web3.utils.hexToNumberString(params[i])
+                    } else if (paramsType[i] === 'address') {
+                        decodeValue = params[i].replace('000000000000000000000000', '0x')
+                        console.log('=== address', decodeValue)
+                    } else {
+                        decodeValue = params[i]
+                    }
+                    inputData += `\n[${i}]: ${decodeValue}`
                 }
                 tx.inputData = inputData
             }
         }
+        let extraInfo = await db.TxExtraInfo.find({ transactionHash: hash })
+        tx.extraInfo = extraInfo
 
         return res.json(tx)
     } catch (e) {
