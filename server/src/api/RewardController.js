@@ -5,11 +5,12 @@ const BigNumber = require('bignumber.js')
 const logger = require('../helpers/logger')
 const { check, validationResult } = require('express-validator/check')
 const config = require('config')
+const Web3Util = require('../helpers/web3')
 
 const RewardController = Router()
 
 RewardController.get('/rewards/:slug', [
-    check('limit').optional().isInt({ max: 50 }).withMessage('Limit is less than 50 items per page'),
+    check('limit').optional().isInt({ max: 100 }).withMessage('Limit is less than 100 items per page'),
     check('page').optional().isInt().withMessage('Require page is number'),
     check('slug').exists().isLength({ min: 42, max: 42 }).withMessage('Account address is incorrect.')
 ], async (req, res) => {
@@ -40,8 +41,28 @@ RewardController.get('/rewards/:slug', [
     }
 })
 
+RewardController.get('/rewards/alerts/status', [], async (req, res) => {
+    let web3 = await Web3Util.getWeb3()
+    let lastBlock = await web3.eth.getBlockNumber()
+    let currentEpoch = Math.floor(lastBlock / config.get('BLOCK_PER_EPOCH'))
+    let lastEpochReward = currentEpoch - 1
+    let checkExistOnDb = await db.Reward.find({ epoch: lastEpochReward }).limit(1)
+
+    let slow = false
+
+    if (checkExistOnDb.length === 0 && (lastBlock - currentEpoch * config.get('BLOCK_PER_EPOCH')) >= 150) {
+        slow = true
+    }
+    return res.json({
+        lastBlock: lastBlock,
+        currentEpoch: Math.ceil(lastBlock / config.get('BLOCK_PER_EPOCH')),
+        lastEpochReward: lastEpochReward,
+        isSlow: slow
+    })
+})
+
 RewardController.get('/rewards/epoch/:epochNumber', [
-    check('limit').optional().isInt({ max: 50 }).withMessage('Limit is less than 50 items per page'),
+    check('limit').optional().isInt({ max: 100 }).withMessage('Limit is less than 100 items per page'),
     check('page').optional().isInt().withMessage('Require page is number'),
     check('epochNumber').isInt().exists().withMessage('Epoch number is require')
 ], async (req, res) => {
